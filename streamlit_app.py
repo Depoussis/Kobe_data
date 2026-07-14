@@ -97,7 +97,7 @@ all_opponents = sorted(games_df["ADVERSARIO_FULL"].dropna().unique().tolist())
 img_col, info_col = st.columns([1, 3])
 with img_col:
     try:
-        st.image("static/977.png", use_container_width=True)
+        st.image("https://cdn.nba.com/headshots/nba/latest/1040x760/977.png", use_container_width=True)
     except Exception:
         st.markdown("**#8 / #24**")
 with info_col:
