@@ -3,6 +3,8 @@
 import altair as alt
 import pandas as pd
 import streamlit as st
+import snowflake.connector
+from cryptography.hazmat.primitives import serialization
 
 st.set_page_config(
     page_title="Kobe Bryant Analytics",
@@ -11,7 +13,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-conn = st.connection("snowflake")
+
+@st.cache_resource
+def get_connection():
+    private_key_pem = st.secrets["connections"]["snowflake"]["private_key"]
+    p_key = serialization.load_pem_private_key(
+        private_key_pem.encode(), password=None
+    )
+    private_key_bytes = p_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return snowflake.connector.connect(
+        account=st.secrets["connections"]["snowflake"]["account"],
+        user=st.secrets["connections"]["snowflake"]["user"],
+        private_key=private_key_bytes,
+        role=st.secrets["connections"]["snowflake"]["role"],
+        warehouse=st.secrets["connections"]["snowflake"]["warehouse"],
+        database=st.secrets["connections"]["snowflake"]["database"],
+        schema=st.secrets["connections"]["snowflake"]["schema"],
+    )
+
+
+conn = get_connection()
 
 PURPLE = "#552583"
 GOLD = "#FDB927"
@@ -35,14 +60,14 @@ NBA_TEAMS = {
 
 @st.cache_data
 def load_games():
-    df = conn.query("SELECT * FROM YDS_DB.GOLD.FCT_GAME ORDER BY DATE DESC")
+    df = pd.read_sql("SELECT * FROM YDS_DB.GOLD.FCT_GAME ORDER BY DATE DESC", conn)
     df["ADVERSARIO_FULL"] = df["ADVERSARIO_SIGLA"].map(NBA_TEAMS).fillna(df["ADVERSARIO_NOME"])
     return df
 
 
 @st.cache_data
 def load_shots():
-    df = conn.query("SELECT * FROM YDS_DB.GOLD.FCT_SHOT")
+    df = pd.read_sql("SELECT * FROM YDS_DB.GOLD.FCT_SHOT", conn)
     df["ADVERSARIO_FULL"] = df["ADVERSARIO"].map(NBA_TEAMS).fillna(df["ADVERSARIO"])
     if "IS_THREE_POINTER" not in df.columns:
         df["IS_THREE_POINTER"] = df["DISTANCE_OF_SHOT"] >= 22
@@ -51,12 +76,12 @@ def load_shots():
 
 @st.cache_data
 def load_seasons():
-    return conn.query("SELECT * FROM YDS_DB.GOLD.DIM_SEASON ORDER BY SEASON")
+    return pd.read_sql("SELECT * FROM YDS_DB.GOLD.DIM_SEASON ORDER BY SEASON", conn)
 
 
 @st.cache_data
 def load_opponents():
-    return conn.query("SELECT * FROM YDS_DB.GOLD.DIM_OPPONENT ORDER BY TOTAL_GAMES DESC")
+    return pd.read_sql("SELECT * FROM YDS_DB.GOLD.DIM_OPPONENT ORDER BY TOTAL_GAMES DESC", conn)
 
 
 # --- Load ---
