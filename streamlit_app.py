@@ -1,18 +1,17 @@
-# Kobe Bryant Career Analytics Dashboard - Lakers colors, English, Gold Star Schema
+# Kobe Bryant Career Analytics Dashboard - Adapted for Streamlit Cloud
 # Co-authored with CoCo
-from snowflake.snowpark.context import get_active_session
 import altair as alt
 import pandas as pd
 import streamlit as st
 
 st.set_page_config(
     page_title="Kobe Bryant Analytics",
-    page_icon=":material/sports_basketball:",
+    page_icon=":basketball:",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-session = get_active_session()
+conn = st.connection("snowflake")
 
 PURPLE = "#552583"
 GOLD = "#FDB927"
@@ -36,14 +35,14 @@ NBA_TEAMS = {
 
 @st.cache_data
 def load_games():
-    df = session.sql("SELECT * FROM YDS_DB.GOLD.FCT_GAME ORDER BY DATE DESC").to_pandas()
+    df = conn.query("SELECT * FROM YDS_DB.GOLD.FCT_GAME ORDER BY DATE DESC")
     df["ADVERSARIO_FULL"] = df["ADVERSARIO_SIGLA"].map(NBA_TEAMS).fillna(df["ADVERSARIO_NOME"])
     return df
 
 
 @st.cache_data
 def load_shots():
-    df = session.sql("SELECT * FROM YDS_DB.GOLD.FCT_SHOT").to_pandas()
+    df = conn.query("SELECT * FROM YDS_DB.GOLD.FCT_SHOT")
     df["ADVERSARIO_FULL"] = df["ADVERSARIO"].map(NBA_TEAMS).fillna(df["ADVERSARIO"])
     if "IS_THREE_POINTER" not in df.columns:
         df["IS_THREE_POINTER"] = df["DISTANCE_OF_SHOT"] >= 22
@@ -52,12 +51,12 @@ def load_shots():
 
 @st.cache_data
 def load_seasons():
-    return session.sql("SELECT * FROM YDS_DB.GOLD.DIM_SEASON ORDER BY SEASON").to_pandas()
+    return conn.query("SELECT * FROM YDS_DB.GOLD.DIM_SEASON ORDER BY SEASON")
 
 
 @st.cache_data
 def load_opponents():
-    return session.sql("SELECT * FROM YDS_DB.GOLD.DIM_OPPONENT ORDER BY TOTAL_GAMES DESC").to_pandas()
+    return conn.query("SELECT * FROM YDS_DB.GOLD.DIM_OPPONENT ORDER BY TOTAL_GAMES DESC")
 
 
 # --- Load ---
@@ -125,21 +124,20 @@ wins = int(fg["IS_WIN"].sum()) if total_games > 0 else 0
 win_pct = round(wins / total_games * 100, 1) if total_games > 0 else 0
 
 k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Games", f"{total_games:,}", border=True)
-k2.metric("Total Points", f"{total_pts:,}", border=True)
-k3.metric("PPG", f"{avg_ppg}", border=True)
-k4.metric("Avg FG%", f"{avg_fg}%", border=True)
-win_label = f"{wins if total_games != 1566 else 971}W - {total_games - wins if total_games != 1566 else 594}L"
-k5.metric("Win%", f"{win_pct}%", border=True)
+k1.metric("Games", f"{total_games:,}")
+k2.metric("Total Points", f"{total_pts:,}")
+k3.metric("PPG", f"{avg_ppg}")
+k4.metric("Avg FG%", f"{avg_fg}%")
+k5.metric("Win%", f"{win_pct}%")
 
-st.space("small")
+st.divider()
 
 # --- Row 1: PPG by season + Top opponents ---
 col1, col2 = st.columns([3, 2])
 
 with col1:
     with st.container(border=True):
-        st.markdown(f"#### :material/trending_up: Points per game by season")
+        st.markdown("#### Points per game by season")
         season_data = fg.groupby("SEASON", as_index=False).agg(
             GAMES=("GAME_ID", "count"),
             AVG_PPG=("KOBE_POINTS", "mean"),
@@ -165,13 +163,13 @@ with col1:
             tooltip=[alt.Tooltip("SEASON:N", title="Season"), alt.Tooltip("AVG_FG:Q", title="FG%")],
         )
 
-        combined = alt.layer(bars, line).resolve_scale(y="independent").properties(height=350).configure_view(strokeWidth=0).configure_axis(gridColor="#2A2F3A", labelColor="#AAA")
+        combined = alt.layer(bars, line).resolve_scale(y="independent").properties(height=350)
         st.altair_chart(combined, use_container_width=True)
-        st.caption(f":violet-background[Bars] = PPG · :orange-background[Line] = FG%")
+        st.caption("Bars = PPG · Line = FG%")
 
 with col2:
     with st.container(border=True):
-        st.markdown(f"#### :material/groups: Top opponents")
+        st.markdown("#### Top opponents")
         opp_stats = fg.groupby("ADVERSARIO_FULL", as_index=False).agg(
             GAMES=("GAME_ID", "count"),
             FG=("FG_PCT", "mean"),
@@ -195,14 +193,14 @@ with col2:
             hide_index=True, height=390, use_container_width=True,
         )
 
-st.space("small")
+st.divider()
 
 # --- Row 2: Shot type + Quarter + Home/Away ---
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    with st.container(border=True, height=330):
-        st.markdown(f"#### :material/target: FG% by shot type")
+    with st.container(border=True):
+        st.markdown("#### FG% by shot type")
         fs["SHOT_TYPE_2_3"] = fs["IS_THREE_POINTER"].apply(lambda x: "3PT" if x else "2PT")
         type_stats = fs.groupby("SHOT_TYPE_2_3", as_index=False).agg(
             SHOTS=("IS_GOAL", "count"), MADE=("IS_GOAL", "sum"),
@@ -227,8 +225,8 @@ with col1:
         )
 
 with col2:
-    with st.container(border=True, height=330):
-        st.markdown(f"#### :material/timer: FG% by quarter")
+    with st.container(border=True):
+        st.markdown("#### FG% by quarter")
         q_stats = fs.groupby("PERIODO", as_index=False).agg(
             SHOTS=("IS_GOAL", "count"), MADE=("IS_GOAL", "sum"),
         )
@@ -247,12 +245,12 @@ with col2:
             y=alt.Y("FG_PCT:Q"),
             text="LABEL:N",
         )
-        q_chart = (q_bars + q_text).properties(height=230).configure_view(strokeWidth=0).configure_axis(gridColor="#2A2F3A", labelColor="#AAA")
+        q_chart = (q_bars + q_text).properties(height=230)
         st.altair_chart(q_chart, use_container_width=True)
 
 with col3:
-    with st.container(border=True, height=330):
-        st.markdown(f"#### :material/home: Home vs Away")
+    with st.container(border=True):
+        st.markdown("#### Home vs Away")
         ha_stats = fg.groupby("LOCAL_JOGO", as_index=False).agg(
             GAMES=("GAME_ID", "count"), PPG=("KOBE_POINTS", "mean"),
             FG=("FG_PCT", "mean"), WINS=("IS_WIN", "sum"),
@@ -266,14 +264,14 @@ with col3:
                 f"{row['LOCAL_JOGO']} ({int(row['GAMES'])} games)",
                 f"{row['PPG']} PPG",
                 f"FG: {row['FG']}% · Win: {row['WIN_PCT']}%",
-                delta_color="off", border=True,
+                delta_color="off",
             )
 
-st.space("small")
+st.divider()
 
 # --- Row 3: Top games ---
 with st.container(border=True):
-    st.markdown(f"#### :material/emoji_events: Top scoring games")
+    st.markdown("#### Top scoring games")
     top_games = fg.nlargest(20, "KOBE_POINTS")[[
         "DATE", "ADVERSARIO_FULL", "LOCAL_JOGO", "ARENA_NAME", "KOBE_POINTS",
         "FG_MADE", "FG_ATT", "FG_PCT", "FG3_MADE", "FT_MADE", "FT_ATT",
