@@ -149,11 +149,21 @@ wins = int(fg["IS_WIN"].sum()) if total_games > 0 else 0
 win_pct = round(wins / total_games * 100, 1) if total_games > 0 else 0
 
 k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("Games", f"{total_games:,}")
-k2.metric("Total Points", f"{total_pts:,}")
-k3.metric("PPG", f"{avg_ppg}")
-k4.metric("Avg FG%", f"{avg_fg}%")
-k5.metric("Win%", f"{win_pct}%")
+with k1:
+    with st.container(border=True):
+        st.metric("Games", f"{total_games:,}")
+with k2:
+    with st.container(border=True):
+        st.metric("Total Points", f"{total_pts:,}")
+with k3:
+    with st.container(border=True):
+        st.metric("PPG", f"{avg_ppg}")
+with k4:
+    with st.container(border=True):
+        st.metric("Avg FG%", f"{avg_fg}%")
+with k5:
+    with st.container(border=True):
+        st.metric("Win%", f"{win_pct}%")
 
 st.divider()
 
@@ -224,7 +234,7 @@ st.divider()
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    with st.container(border=True):
+    with st.container(border=True, height=380):
         st.markdown("#### FG% by shot type")
         fs["SHOT_TYPE_2_3"] = fs["IS_THREE_POINTER"].apply(lambda x: "3PT" if x else "2PT")
         type_stats = fs.groupby("SHOT_TYPE_2_3", as_index=False).agg(
@@ -250,7 +260,7 @@ with col1:
         )
 
 with col2:
-    with st.container(border=True):
+    with st.container(border=True, height=380):
         st.markdown("#### FG% by quarter")
         q_stats = fs.groupby("PERIODO", as_index=False).agg(
             SHOTS=("IS_GOAL", "count"), MADE=("IS_GOAL", "sum"),
@@ -270,11 +280,11 @@ with col2:
             y=alt.Y("FG_PCT:Q"),
             text="LABEL:N",
         )
-        q_chart = (q_bars + q_text).properties(height=230)
+        q_chart = (q_bars + q_text).properties(height=250)
         st.altair_chart(q_chart, use_container_width=True)
 
 with col3:
-    with st.container(border=True):
+    with st.container(border=True, height=380):
         st.markdown("#### Home vs Away")
         ha_stats = fg.groupby("LOCAL_JOGO", as_index=False).agg(
             GAMES=("GAME_ID", "count"), PPG=("KOBE_POINTS", "mean"),
